@@ -6,16 +6,16 @@ import jieba
 import pandas as pd
 import configparser
 
-
+# 读取配置文件中的 key
 config = configparser.RawConfigParser()
 config.read('key.cfg')
-
 key = config.get('settings', 'key')
 
 # 全局变量，控制开关
 global on
 on = True
 
+# 读取城市列表
 CSV_FILE_PATH = './china-city-list.csv'
 df = pd.read_csv(CSV_FILE_PATH, skiprows=1)
 city_set = set(df["City_CN"])
@@ -79,12 +79,20 @@ def weather_now(loc):
     return message
 
 
+def save_msg(filename, msg):
+    time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(msg.createTime))
+    msg_str = "Time: {}\nFrom: {} \nTo  : {}\nCont: {}".format(time_str, msg.fromUserName, msg.toUserName,
+                                                               msg.content)
+    
+    with open(filename,'a',encoding='utf8') as f:
+        f.write(msg_str)
+        f.write('\n')
+
 @itchat.msg_register(itchat.content.TEXT, isFriendChat=True)
 def text_reply(msg):
     global on
 
-    # json_str = json.dumps(msg, ensure_ascii=False, indent=4, separators=(',', ':'))
-    # print(json_str)
+    save_msg('log', msg)
 
     # 发给文件助手时，相当于发给自己
     if msg.toUserName == "filehelper":
@@ -99,10 +107,7 @@ def text_reply(msg):
     print("Auto-Reply: ", on)
 
     if on:
-        time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(msg.createTime))
-        msg_str = "Time: {}\nFrom: {} \nTo  : {}\nCont: {}".format(time_str, msg.fromUserName, msg.toUserName,
-                                                                   msg.content)
-        print(msg_str)
+        
 
         loc_list = []
         for w in jieba.cut(msg.content, cut_all=False):
