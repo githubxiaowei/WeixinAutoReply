@@ -92,7 +92,6 @@ class Robot:
             self.reply_weather(msg)
     
     def reply_weather(self, msg):
-
         if msg.content[0] == '*':
             loc_list = []
             for w in jieba.cut(msg.content, cut_all=False):
@@ -101,6 +100,7 @@ class Robot:
 
             for loc in loc_list:
                 m = "[自动回复-实时天气]\n" + weather_now(loc, self.key)
+                m += air_now(loc, self.key)
                 self.instance.send_msg(m, msg.fromUserName)
 
     def auto_reply(self, app):
@@ -127,15 +127,13 @@ class Robot:
         User-spercified task
         :return: None
         """
-        isHour, hour = is_hour()
-
-        if isHour and hour % 2 == 0:
-            message_concent = "[整点天气]\n" + weather_now(loc='杭州', key=self.key)
-            self.send_to(message_concent, 'csm')
+        if is_hour()[0]:
+            message_concent = "[整点天气]\n" + weather_now(loc='海淀', key=self.key) + air_now(loc='beijing', key=self.key)
+            self.send_to(message_concent, 'xiaowei')
 
         if is_day():
-            message_concent = "[天气预报]\n" + weather_forecast(loc='杭州', key=self.key)
-            self.send_to(message_concent, 'csm')
+            message_concent = "[天气预报]\n" + weather_forecast(loc='海淀', key=self.key)
+            self.send_to(message_concent, 'xiaowei')
 
         time.sleep(60)
 
