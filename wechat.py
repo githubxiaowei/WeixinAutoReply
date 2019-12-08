@@ -1,10 +1,10 @@
 import itchat
-import requests
-import json
-import time
 import jieba
 import pandas as pd
 import configparser
+import _thread
+from utils.weather import *
+from utils.schedule import *
 
 # 读取配置文件中的 key
 config = configparser.RawConfigParser()
@@ -21,72 +21,23 @@ df = pd.read_csv(CSV_FILE_PATH, skiprows=1)
 city_set = set(df["City_CN"])
 
 
-def weather_forecast(loc):
-    url = 'https://free-api.heweather.net/s6/weather/forecast?location={}&key={}'.format(loc, key)
-    res = requests.get(url)
-
-    data = json.loads(res.text)
-    # data_str = json.dumps(data, ensure_ascii=False, indent=4, separators=(',', ':'))
-
-    weather_data = data["HeWeather6"][0]
-    location = weather_data["basic"]["location"]
-    admin_area = weather_data["basic"]["admin_area"]
-    cnty = weather_data["basic"]["cnty"]
-    time = weather_data["update"]["loc"]
-    forecast = weather_data["daily_forecast"]
-
-    day_text = ["今天", "明天", "后天"]
-    message = "地区：{}-{}-{}\n".format(cnty, admin_area, location)
-    message += "时间：{}\n".format(time)
-    message += '\n'.join(["{}({})，日间天气{}，夜间天气{}，相对湿度{}%，最高气温{}度，最低气温{}度，风向{}，风力{}级，能见度{}公里。" \
-                         .format(day_text[i],
-                                 forecast[i]["date"],
-                                 forecast[i]["cond_txt_d"],
-                                 forecast[i]["cond_txt_n"],
-                                 forecast[i]["hum"],
-                                 forecast[i]["tmp_max"],
-                                 forecast[i]["tmp_min"],
-                                 forecast[i]["wind_dir"], forecast[0]["wind_sc"], forecast[0]["vis"]) for i in
-                          range(2)])
-    return message
-
-
-def weather_now(loc):
-    url = 'https://free-api.heweather.net/s6/weather/now?location={}&key={}'.format(loc, key)
-    res = requests.get(url)
-
-    data = json.loads(res.text)
-    # data_str = json.dumps(data, ensure_ascii=False, indent=4, separators=(',', ':'))
-
-    weather_data = data["HeWeather6"][0]
-    location = weather_data["basic"]["location"]
-    admin_area = weather_data["basic"]["admin_area"]
-    cnty = weather_data["basic"]["cnty"]
-    time = weather_data["update"]["loc"]
-    now = weather_data["now"]
-
-    message = "[自动回复-实时天气]\n"
-    message += "地区：{}-{}-{}\n".format(cnty, admin_area, location)
-    message += "时间：{}\n".format(time)
-    message += "天气{}，温度{}度，体感温度{}度，相对湿度{}%，风向{}，风力{}级，能见度{}公里。" \
-        .format(now["cond_txt"],
-                now["tmp"],
-                now["fl"],
-                now["hum"],
-                now["wind_dir"],
-                now["wind_sc"],
-                now["vis"])
-    return message
-
-
 def save_msg(filename, msg):
     time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(msg.createTime))
-    msg_str = "Time: {}\nFrom: {} \nTo  : {}\nCont: {}".format(time_str, msg.fromUserName, msg.toUserName,
+    msg_str = "Time: {}\nFrom: {} \nTo  : {}\nCont: {}".format(time_str,
+                                                               msg.fromUserName,
+                                                               msg.toUserName,
                                                                msg.content)
-    
-    with open(filename,'a',encoding='utf8') as f:
+    with open(filename, 'a', encoding='utf8') as f:
         f.write(msg_str)
         f.write('\n')
+
+
+def send_to(msg, remarkName):
+    result = itchat.search_friends(remarkName)
+    if len(result) == 1 and remarkName == result[0]["RemarkName"]:  #
+        target = result[0]["UserName"]
+        itchat.send(msg, target)
+
 
 @itchat.msg_register(itchat.content.TEXT, isFriendChat=True)
 def text_reply(msg):
@@ -104,10 +55,8 @@ def text_reply(msg):
             on = True
         elif msg.text == "off":
             on = False
-    print("Auto-Reply: ", on)
 
     if on:
-        
 
         loc_list = []
         for w in jieba.cut(msg.content, cut_all=False):
@@ -115,10 +64,33 @@ def text_reply(msg):
                 loc_list.append(w)
 
         for loc in loc_list:
-            m = weather_now(loc)
+            m = "[自动回复-实时天气]\n" + weather_now(loc, key)
             itchat.send_msg(m, msg.fromUserName)
 
 
-# 二维码登陆
+global login
+
+
+def keep_run(app):
+    global login
+    assert (login == True)
+    app.run()
+    login = False
+
+
 itchat.auto_login(hotReload=True)
-itchat.run()
+login = True
+_thread.start_new_thread(keep_run, (itchat,))
+
+while (login):
+    isHour, hour = is_hour()
+
+    if isHour and hour%2==0:
+        message_concent = "[整点天气]\n" + weather_now(loc='杭州', key=key)
+        send_to(message_concent, 'csm')
+
+    if is_day():
+        message_concent = "[天气预报]\n" + weather_forecast(loc='杭州', key=key)
+        send_to(message_concent, 'csm')
+
+    time.sleep(60)

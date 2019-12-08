@@ -1,3 +1,5 @@
 *.pkl
 *.cfg
+*.pyc
+.idea
 log
