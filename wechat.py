@@ -89,6 +89,11 @@ class Robot:
 
         if self.on:
 
+            self.reply_weather(msg)
+    
+    def reply_weather(self, msg):
+
+        if msg.content[0] == '*':
             loc_list = []
             for w in jieba.cut(msg.content, cut_all=False):
                 if w in self.city_set:
